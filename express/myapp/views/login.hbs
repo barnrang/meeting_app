@@ -1,0 +1,13 @@
+<p>Login Page</p>
+<form id='form'><input type="text" name="uname"></form>
+<script src="https://code.jquery.com/jquery-1.10.2.js"></script>
+<script>
+    $('#form').on('submit', (ev) => {
+        //alert($('input')[0].value)
+        $.ajax({
+            type:'GET',
+            url:'/login',
+            data: {text:$('input')[0].value}
+        })
+    })
+</script>

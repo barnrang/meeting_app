@@ -1,0 +1,244 @@
+<h1>{{title}}</h1>
+<p>Welcome to {{title}}</p>
+<div id='transcription-wrapper'>
+</div><br>
+<button id='record' style="font-size:24px"><i class="fa fa-microphone"></i></button>
+<button id='reset' style="font-size:24px" onclick="flushChat(1,0)">reset</button>
+<button id='save' style="font-size:24px" onclick="flushChat(0, 1)">save</button>
+<button id='reset-save' style="font-size:24px" onclick="flushChat(1,1)">save &amp; reset</button>
+<p id="error"></p>
+<script>
+const username = document.querySelector('h1').textContent
+
+String.prototype.isEmpty = function() {
+    return (this.length === 0 || !this.trim());
+};
+
+var loc = window.location.host
+var ws = new WebSocket('wss://' + loc + '/stream');
+var Opponent = -1;
+var color = -1;
+var firstMessage = true;
+/*function init(){
+    $.post('/getuser', (data) => {
+        if(data === '0'){
+            var user = prompt("Enter your username: ", "untitle");
+            $.ajax({
+                type:'POST',
+                data:user,
+                url:''
+            })    
+        }
+    })
+}*/
+
+function insertAfterNow(color, text='', user = ''){
+    console.log(user)
+    if(user === '') return '<br><div class=\"transcription\" style=\"border-color:'+ color + '\"readonly>' + text + '</div>'
+    else return '<br> ' + user + ': <div class=\"transcription\" style=\"border-color:'+ color + '\"readonly>' + text + '</div>'
+}
+
+function insertBeforeNow(color, text='', user = ''){
+    console.log("I am inserting before")
+    if (user === '')
+    return '<div class=\"transcription\" style=\"border-color:'+ color + '\"readonly>' + text + '</div><br>'
+    else ' ' + user + ': <div class=\"transcription\" style=\"border-color:'+ color + '\"readonly>' + text + '</div><br>'
+}
+ws.onopen = function(evt) {
+  console.log('Connected to websocket.');
+}
+
+ws.onmessage = (evt) => {
+    if(firstMessage){
+        color = evt.data;
+        firstMessage = false;
+        $(chatbox).css('border-color',color);
+        return
+    }
+    console.log(evt.data)
+    var data = JSON.parse(evt.data)
+    all_transcript = document.getElementsByClassName('transcription');
+    transcript = all_transcript[all_transcript.length - 1]
+    /*if(evt.data === '1'){
+        $('<textarea class=\"transcription\" readonly>' + evt.data + '</textarea><br>').insertBefore(transcript)
+        all_transcript = document.getElementsByClassName('transcription');
+        Opponent = all_transcript[all_transcript.length - 2]
+    }
+
+    else if(evt.data !== '0'){
+        Opponent.textContent = evt.data;
+    }
+
+    else {
+        Opponent = -1
+    }*/
+    console.log("message incoming")
+    if (transcript == undefined){
+        $(chatbox).append(insertAfterNow(data.color, data.text, data.user))
+    }
+    else if (recording) {
+        console.log('incoming while recording');
+        sub_transcript = all_transcript[all_transcript.length - 2]
+        if (sub_transcript == undefined){
+            $(chatbox).prepend(insertAfterNow(data.color, data.text,data.user))
+        }
+        //$(insertBeforeNow(data.color, data.text,data.user)).insertBefore(transcript)
+        else $(sub_transcript).append(insertAfterNow(data.color, data.text,data.user))
+    }
+    else{
+        //transcript.textContent = evt.data
+        $(chatbox).append(insertAfterNow(data.color, data.text, data.user)) ;
+    }
+}
+
+const button = document.getElementById('record');
+console.log(button)
+const reset = document.getElementById('reset');
+var errorbox = document.getElementById('error')
+var chatbox = $('#transcription-wrapper')
+function flushChat(reset, save){
+    console.log(reset, save)
+    if(save){
+        var textfile = prompt("Enter your file name: ", "log.txt")
+        if (textfile == null || textfile.isEmpty()) {
+            errorbox.textContent = "Error: no file name"
+            return
+        }
+        else{
+            errorbox.textContent = ''
+            $.ajax({
+                type: "POST",
+                url: '/save',
+                data: {
+                    load: textfile,
+                    reset: reset,
+                    save: save
+                }
+            })
+        }
+        if (reset) $(chatbox).empty();
+    }
+    else if(reset & !save){
+        $.ajax({
+            type: "POST",
+            url: '/save',
+            data: {
+                load: textfile,
+                reset: reset,
+                save: save
+            }
+        })
+        $(chatbox).empty();
+    }
+}
+
+var recording = false;
+var all_transcript = -1
+var transcript = -1
+
+var SpeechRecognition = SpeechRecognition || webkitSpeechRecognition
+var recognition = new SpeechRecognition()
+recognition.continuous = true
+recognition.onresult = (ev) => {
+    transcript.textContent = '';
+    //const data = ev.results;
+    for (var i = ev.resultIndex; i < ev.results.length; i++){
+        if (ev.results[i].isFinal){
+            console.log('final')
+            transcript.textContent += ev.results[i][0].transcript;
+            //ws.send(transcript.textContent)
+        }
+        else{
+            console.log('interim')
+            transcript.textContent += ev.results[i][0].transcript;
+            //ws.send(transcript.textContent)
+        }
+    }
+}
+
+button.onclick = (ev) => {
+  const current = document.querySelector('i').style.color;
+  if(current === ''){
+      console.log('startt')
+      recognition.interimResults = true
+      $(chatbox).append(insertAfterNow(color, text='')) ;
+      all_transcript = document.getElementsByClassName('transcription');
+      transcript = all_transcript[all_transcript.length - 1]
+      recognition.start();
+  }
+  else{recognition.stop();
+    //$(chatbox).append(insertAfterNow(color)) ;
+    if (transcript.textContent.isEmpty()){
+        delete transcript;
+    }
+    else {
+        $(transcript).before(" Me: ")
+        ws.send(JSON.stringify({text:transcript.textContent, color:color, user:username}))
+    }
+  }
+  document.querySelector('i').style.color = current === '' ? 'red':'';
+  recording = !recording;
+}
+
+
+/*function initializeRecorder(stream){
+   audio_context = new AudioContext;
+   audio_context.sampleRate = 16000;
+   sampleRate = 16000
+   ws1.send("sample rate:" + sampleRate);
+   var audioInput = audio_context.createMediaStreamSource(stream);
+
+   console.log("Created media stream.");
+
+   var bufferSize = 4096;
+   // record only 1 channel
+   var recorder = audio_context.createScriptProcessor(bufferSize, 1, 1);
+   // specify the processing function
+   recorder.onaudioprocess = recorderProcess;
+   // connect stream to our recorder
+   audioInput.connect(recorder);
+   // connect our recorder to the previous destination
+   recorder.connect(audio_context.destination);
+}*/
+
+/*ws1.onopen = (evt) => {
+    ws1.send('2nd connected');
+}
+
+ws1.onmessage = (evt) => {
+    var blob = new Blob([ new DataView(evt.data) ], {
+      type: 'audio/wav'
+    })
+    var url = URL.createObjectURL(blob)
+    const audio = new Audio(url);
+    audio.play();
+}
+
+function recorderProcess(e) {
+  if (recording){
+    var left = e.inputBuffer.getChannelData(0);
+    
+    //ws.send(convertFloat32ToInt16(left));
+  }
+}
+
+function _arrayBufferToBase64( buffer ) {
+    var binary = '';
+    var bytes = new Uint8Array( buffer );
+    var len = bytes.byteLength;
+    for (var i = 0; i < len; i++) {
+        binary += String.fromCharCode( bytes[ i ] );
+    }
+    return window.btoa( binary );
+}
+
+function convertFloat32ToInt16(buffer) {
+  l = buffer.length;
+  buf = new Int16Array(l);
+  while (l--) {
+    buf[l] = Math.min(1, buffer[l])*0x7FFF;
+  }
+  return buf.buffer;
+} */
+
+</script>
