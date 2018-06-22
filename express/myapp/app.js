@@ -13,7 +13,7 @@ var usersRouter = require('./routes/users');
 
 var app = express();
 var sessionParser = session({ secret: 'secret',
-resave: true,
+resave: false,
 saveUninitialized: true})
 app.use(sessionParser)
 var expressWs = require('express-ws')(app);
@@ -29,23 +29,64 @@ var login_users = []
 current_log = ''
 
 app.get('/', function(req, res, next) {
-  if (!req.session.user) res.render('login');
-  else res.render('index', { title: req.session.user });
+  if (!req.session.user){
+    console.log('miss ' + req.session.user)
+    res.redirect('/login');
+  }
+  else{
+    console.log('corr ' + req.session.user)
+    res.render('index', { title: req.session.user });
+  }
 });
 
 app.get('/login', (req, res, next) => {
-  var user = req.query.text
+  res.render('login')
+})
+
+app.get('/nocolor', (req,res,next) => {
+  var chosen_color = colors_av.findIndex(el => el == 1)
+  if(chosen_color == -1)
+  res.render('error', {message: "no more color", error:{
+    status: "wait",
+    stack:"that fine"
+  }});
+  else {
+    res.redirect('/login')
+  }
+})
+
+app.post('/login', (req, res) => {
+  var user = req.body.uname
+  console.log(user)
   if (login_users.findIndex((el) => el === user) != -1){
-    res.render('login')
+    res.redirect('/login')
   }
   else {
     req.session.user = user
+    login_users.push(user)
     var chosen_color = colors_av.findIndex(el => el == 1)
+    if(chosen_color == -1){res.redirect('/nocolor'); return}
     colors_av[chosen_color] = 0
     req.session.color_idx = chosen_color
     req.session.color = colors[chosen_color]
-    res.render('index', { title: req.session.user })
+    req.session.save((err) => {
+      console.log('save user sess')
+      res.redirect('/')
+    })
   }
+})
+
+app.get('/logout', (req,res,next) => {
+  console.log('logout')
+  var color_idx = req.session.color_idx;
+  colors_av[color_idx] = 1;
+  var idx = login_users.findIndex((el) => el === req.session.user)
+  login_users.splice(idx)
+  req.session.destroy();
+  req.session.save((err)=>{
+    console.log('session destroy')
+    res.render('login')
+  })
 })
 
 app.ws('/stream', (ws, req) => {

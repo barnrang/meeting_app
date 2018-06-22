@@ -1,5 +1,8 @@
 <h1>{{title}}</h1>
 <p>Welcome to {{title}}</p>
+<form action="/login">
+    <input type="submit" value="Go to Google" onclick="logout()" />
+</form>
 <div id='transcription-wrapper'>
 </div><br>
 <button id='record' style="font-size:24px"><i class="fa fa-microphone"></i></button>
@@ -31,6 +34,10 @@ var firstMessage = true;
         }
     })
 }*/
+
+function logout(){
+    $.get('/logout');
+}
 
 function insertAfterNow(color, text='', user = ''){
     console.log(user)
